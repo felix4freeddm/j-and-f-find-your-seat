@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find Your Seat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+            colors: {
+              // --- YOUR CUSTOM COLORS ---
+              // Replace these with your desired hex or RGB codes.
+              primary: '#6366F1',   // A vibrant shade, used for buttons and highlights
+              secondary: '#9333EA',  // A complementary color for the gradient background
+              'primary-dark': '#4F46E5', // A darker shade for hover effects
+            },
+          }
+        }
+      }
+    </script>
+    <style>
+      .result-section {
+          opacity: 0;
+          transition: opacity 0.5s ease-in-out;
+      }
+      .visible {
+          opacity: 1;
+      }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-primary to-secondary min-h-screen flex items-center justify-center p-4">
+
+    <!-- Main Container -->
+    <div class="bg-white bg-opacity-90 backdrop-blur-sm shadow-2xl rounded-3xl p-8 max-w-lg w-full transform transition-all duration-500 hover:scale-105">
+        <div class="text-center">
+            <!-- Title and Description -->
+            <h1 class="text-4xl font-bold text-gray-800 mb-2 tracking-tight">Find Your Seat</h1>
+            <p class="text-gray-600 mb-6">Enter your name to find your table number.</p>
+        </div>
+
+        <!-- Search Form -->
+        <form id="search-form" class="space-y-4">
+            <input 
+                id="guest-name" 
+                type="text" 
+                placeholder="Enter your name..." 
+                class="w-full px-5 py-3 text-lg rounded-2xl border-2 border-gray-300 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition duration-300"
+                required
+            >
+            <button 
+                type="submit" 
+                class="w-full bg-primary text-white font-semibold py-3 px-6 rounded-2xl shadow-lg hover:bg-primary-dark transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-xl"
+            >
+                Search
+            </button>
+        </form>
+
+        <!-- Result Section -->
+        <div id="result-container" class="mt-8 text-center result-section">
+            <div id="result-message" class="text-lg text-gray-700 font-medium mb-4"></div>
+            <div id="table-number-display" class="bg-gray-100 rounded-2xl p-6 shadow-inner border border-gray-200">
+                <p class="text-sm text-gray-500 mb-2 uppercase tracking-wide">Your Table Number</p>
+                <p id="table-number" class="text-6xl font-extrabold text-primary-dark leading-none"></p>
+            </div>
+        </div>
+
+        <!-- Error/Info Message -->
+        <div id="message-box" class="mt-6 text-center text-red-500 font-medium hidden"></div>
+
+    </div>
+
+    <script>
+        // IMPORTANT: Replace this URL with the published URL of your Google Sheet
+        const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQhfcrl64Sek1r_8vw2XpO_EO77sN-52AzoBrfbfk8D1pVFtBJWX6KLjKV1lA9X05TPzaaMEXa0W_c_/pub?gid=0&single=true&output=csv';
+        let guestData = [];
+
+        // Function to show a temporary message box
+        function showMessage(message, type = 'error') {
+            const messageBox = document.getElementById('message-box');
+            messageBox.textContent = message;
+            messageBox.className = `mt-6 text-center font-medium block ${type === 'error' ? 'text-red-500' : 'text-green-500'}`;
+            messageBox.classList.remove('hidden');
+        }
+
+        // Function to hide the message box
+        function hideMessage() {
+            const messageBox = document.getElementById('message-box');
+            messageBox.classList.add('hidden');
+            messageBox.textContent = '';
+        }
+
+        // Fetch data from the Google Sheet
+        async function fetchGuestData() {
+            try {
+                // Fetch the sheet data as CSV
+                const response = await fetch(GOOGLE_SHEET_URL);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const csvText = await response.text();
+                
+                // Convert CSV to a more usable JSON format
+                const rows = csvText.split('\n').slice(1).filter(row => row.trim() !== '');
+                guestData = rows.map(row => {
+                    const columns = row.split(',');
+                    // Assuming the first column is Name and the second is Table Number
+                    return {
+                        name: columns[0].trim(),
+                        tableNumber: columns[1].trim()
+                    };
+                });
+
+                console.log('Guest data loaded successfully:', guestData);
+                return true;
+
+            } catch (error) {
+                console.error("Could not fetch or parse guest data:", error);
+                showMessage("There was an error loading the guest list. Please try again later.", "error");
+                return false;
+            }
+        }
+
+        // Handle the form submission
+        document.getElementById('search-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            hideMessage();
+            const guestNameInput = document.getElementById('guest-name').value.trim().toLowerCase();
+            const resultContainer = document.getElementById('result-container');
+            const tableNumberDisplay = document.getElementById('table-number');
+            const resultMessage = document.getElementById('result-message');
+
+            // Hide previous results
+            resultContainer.classList.remove('visible');
+
+            if (!guestData.length) {
+                const dataLoaded = await fetchGuestData();
+                if (!dataLoaded) {
+                    return;
+                }
+            }
+
+            // Find the guest in the data
+            const foundGuest = guestData.find(guest => guest.name.toLowerCase() === guestNameInput);
+
+            if (foundGuest) {
+                resultMessage.textContent = `Hello, ${foundGuest.name}!`;
+                tableNumberDisplay.textContent = foundGuest.tableNumber;
+                resultContainer.classList.add('visible');
+            } else {
+                showMessage("Name not found. Please check your spelling.", "error");
+                tableNumberDisplay.textContent = ''; // Clear previous table number
+                resultMessage.textContent = '';
+            }
+        });
+
+        // Initialize the app by pre-loading the data
+        window.onload = function() {
+            fetchGuestData();
+        };
+
+    </script>
+</body>
+</html>
